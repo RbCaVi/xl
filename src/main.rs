@@ -1,11 +1,12 @@
 mod lexer;
+mod parser;
 
 use lexer::{Lexer, TokenValue};
 
 fn main() {
     let content = r#"
-proc swap (a inout4, b inout4) {
-    var temp
+proc swap (in out a 4, in out b 4) {
+    var temp 4
     op set temp a
     op set a b
     op set b temp
