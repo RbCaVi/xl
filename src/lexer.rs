@@ -74,6 +74,7 @@ use std::iter::Peekable;
 use std::str::CharIndices;
 
 // first define the token
+#[derive(Debug)]
 pub struct Token<'a> {
 	source: &'a str, // do i need this ?
 	text: &'a str, // the part of the source that corresponds to this token
@@ -81,6 +82,7 @@ pub struct Token<'a> {
 }
 
 // and the value
+#[derive(Debug)]
 pub enum TokenValue<'a> {
 	LPAR,
 	RPAR,
@@ -93,6 +95,8 @@ pub enum TokenValue<'a> {
 	LABEL,
 	OP,
 	VAR,
+	IN,
+	OUT,
 	NAME(&'a str), // techncally the &str is not necessary (it is always the same as text) // actually what if i want to 
 	INT(i32),
 }
@@ -147,6 +151,8 @@ impl<'a> Iterator for Lexer<'a> {
 							else if text == "label" {TokenValue::LABEL}
 							else if text == "op" {TokenValue::OP}
 							else if text == "var" {TokenValue::VAR}
+							else if text == "in" {TokenValue::IN}
+							else if text == "out" {TokenValue::OUT}
 							else {TokenValue::NAME(&self.source[start..end])},
 					})
 				} else if c.is_ascii_digit() {

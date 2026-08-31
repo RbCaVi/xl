@@ -2,6 +2,7 @@ mod lexer;
 mod parser;
 
 use lexer::{Lexer, TokenValue};
+use crate::parser::{parse_default, BuildTree};
 
 fn main() {
     let content = r#"
@@ -25,8 +26,11 @@ proc swap (in out a 4, in out b 4) {
             TokenValue::LABEL => {println!("LABEL");}
             TokenValue::OP => {println!("OP");}
             TokenValue::VAR => {println!("VAR");}
+            TokenValue::IN => {println!("IN");}
+            TokenValue::OUT => {println!("OUT");}
             TokenValue::NAME(name) => {println!("NAME {}", name);}
             TokenValue::INT(i) => {println!("INT {}", i);}
         }
     }
+    println!("{:#?}", parse_default::<BuildTree, _>(Lexer::new(content).map(|x| {println!("{:?}", x); x})));
 }
