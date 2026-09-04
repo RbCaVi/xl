@@ -30,143 +30,182 @@
 use std::iter::Peekable;
 use crate::lexer::{Token, TokenValue};
 
+#[derive(Debug)]
+pub struct ParseError {
+	text: &'static str,
+}
+
 // does stringify!() always return something that can be passed to concat!() ?
-macro_rules! try_parse {
-	($iter:ident, $kind:ident, $field:ident) => {
-		match $iter.next().expect(concat!("parse error: at EOF, expected ", stringify!($kind))).value {
-			TokenValue::$kind($field) => $field,
-			_ => {
-				panic!(concat!("parse error: expected ", stringify!($kind)));
-			}
-		}
-	};
+macro_rules! _try_parse_field {
 	($iter:ident, $kind:ident) => {
-		match $iter.next().expect(concat!("parse error: at EOF, expected ", stringify!($kind))).value {
-			TokenValue::$kind => (),
-			_ => {
-				panic!(concat!("parse error: expected ", stringify!($kind)));
-			}
+		match $iter.next().ok_or(parse_eof_expected!($kind))?.value {
+			TokenValue::$kind(field) => field,
+			_ => throw_parse_expected!($kind),
 		}
 	};
 }
-pub fn parse<'a, I: Iterator<Item = Token<'a>>>(iter: I) -> CodeNode<'a> {
+
+macro_rules! _try_parse_empty {
+	($iter:ident, $kind:ident) => {
+		match $iter.next().ok_or(parse_eof_expected!($kind))?.value {
+			TokenValue::$kind => (),
+			_ => throw_parse_expected!($kind),
+		}
+	};
+}
+
+macro_rules! try_parse {
+	($iter:ident, LPAR) => (_try_parse_empty!($iter, LPAR));
+	($iter:ident, RPAR) => (_try_parse_empty!($iter, RPAR));
+	($iter:ident, LBR) => (_try_parse_empty!($iter, LBR));
+	($iter:ident, RBR) => (_try_parse_empty!($iter, RBR));
+	($iter:ident, COMMA) => (_try_parse_empty!($iter, COMMA));
+	($iter:ident, AMP) => (_try_parse_empty!($iter, AMP));
+	($iter:ident, PROC) => (_try_parse_empty!($iter, PROC));
+	($iter:ident, FN) => (_try_parse_empty!($iter, FN));
+	($iter:ident, LABEL) => (_try_parse_empty!($iter, LABEL));
+	($iter:ident, OP) => (_try_parse_empty!($iter, OP));
+	($iter:ident, VAR) => (_try_parse_empty!($iter, VAR));
+	($iter:ident, IN) => (_try_parse_empty!($iter, IN));
+	($iter:ident, OUT) => (_try_parse_empty!($iter, OUT));
+	($iter:ident, NAME) => (_try_parse_field!($iter, NAME));
+	($iter:ident, INT) => (_try_parse_field!($iter, INT));
+	
+}
+
+macro_rules! comma_or_sep {
+	($i:ident) => (stringify!($i));
+	($i1:ident, $i2:ident) => (concat!(stringify!($i1), " or ", stringify!($i2)));
+	($i1:ident, $i2:ident, $i3:ident) => (concat!(stringify!($i1), ", ", stringify!($i2), ", or ", stringify!($i3)));
+	($first:ident, $($rest:ident),*) => (concat!(stringify!($first), ", ", comma_or_sep!($($rest),*)));
+}
+
+macro_rules! parse_expected {
+	($($kinds:ident),*) => (ParseError {text: concat!("parse error: expected ", comma_or_sep!($($kinds),*))});
+}
+
+macro_rules! parse_eof_expected {
+	($($kinds:ident),*) => (ParseError {text: concat!("parse error: at EOF, expected ", comma_or_sep!($($kinds),*))});
+}
+
+macro_rules! throw_parse_expected {
+	($($kinds:ident),*) => (Err(parse_expected!($($kinds),*))?);
+}
+
+macro_rules! throw_parse_eof_expected {
+	($($kinds:ident),*) => (Err(parse_eof_expected!($($kinds),*))?);
+}
+
+pub fn parse<'a, I: Iterator<Item = Token<'a>>>(iter: I) -> Result<CodeNode<'a>, ParseError> {
 	parse_code(&mut iter.peekable())
 }
 
-fn parse_code<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> CodeNode<'a> {
+fn parse_code<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<CodeNode<'a>, ParseError> {
 	// use parse_stmt to parse stmts into a Vec<StmtNode>
 	// then pass it into Visitor::code()
 	let mut items: Vec<ItemNode<'a>> = Vec::new();
-	while let Some(item) = parse_item(iter) {
+	while let Some(item) = parse_item(iter)? {
 		items.push(item);
 	}
-	CodeNode {code: items}
+	Ok(CodeNode {code: items})
 }
 
-fn parse_item<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Option<ItemNode<'a>> {
+fn parse_item<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ItemNode<'a>>, ParseError> {
 	// check next token
 	// must be proc (for now, will add fn, possibly others)
-	match iter.next()?.value {
+	match match iter.next() {None => return Ok(None), Some(x) => x}.value {
 		TokenValue::PROC => {
 			// parse name '(' args ')' '{' code '}'
 			// jumptargets will come later
-			let name = try_parse!(iter, NAME, name);
+			let name = try_parse!(iter, NAME);
 			try_parse!(iter, LPAR);
 			let mut args: Vec<ProcArgNode> = Vec::new();
-			while let Some(arg) = parse_procarg(iter) {
+			while let Some(arg) = parse_procarg(iter)? {
 				args.push(arg);
-				match iter.next().expect("parse error: at EOF, expected COMMA or RPAR").value {
+				match iter.next().ok_or(parse_eof_expected!(COMMA, RPAR))?.value {
 					TokenValue::COMMA => (),
 					TokenValue::RPAR => break,
-					_ => {
-						panic!("parse error: expected COMMA or RPAR");
-					}
+					_ => throw_parse_expected!(COMMA, RPAR),
 				}
 			}
 			try_parse!(iter, LBR);
 			let mut stmts: Vec<StmtNode<'a>> = Vec::new();
-			while let Some(stmt) = parse_stmt(iter) {
+			while let Some(stmt) = parse_stmt(iter)? {
 				stmts.push(stmt);
 			}
 			try_parse!(iter, RBR);
-			Some(ItemNode::Proc(ProcNode {name: name, args: args, code: stmts}))
+			Ok(Some(ItemNode::Proc(ProcNode {name: name, args: args, code: stmts})))
 		},
-		_ => {
-			panic!("parse error: expected PROC or EOF");
-		},
+		_ => throw_parse_expected!(PROC, EOF),
 	}
 }
 
-fn parse_procarg<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Option<ProcArgNode<'a>> {
+fn parse_procarg<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ProcArgNode<'a>>, ParseError> {
 	// uhh can have in out
 	// then name type
 	// ok so pop tokens until a name comes up
 	let mut in_ = false;
 	let mut out = false;
 	let name = loop {
-		match iter.next().expect("parse error: at EOF, expected IN, OUT, or NAME").value {
+		match iter.next().ok_or(parse_eof_expected!(IN, OUT, NAME))?.value {
 			TokenValue::IN => {in_ = true;},
 			TokenValue::OUT => {out = true;},
 			TokenValue::NAME(name) => {break name;},
-			_ => {
-				panic!("parse error: expected IN, OUT, or NAME");
-			}
+			_ => throw_parse_expected!(IN, OUT, NAME),
 		}
 	};
-	let argtype = parse_argtype(iter);
-	Some(ProcArgNode {in_: in_, out: out, name: name, argtype: argtype})
+	let argtype = parse_argtype(iter)?;
+	Ok(Some(ProcArgNode {in_: in_, out: out, name: name, argtype: argtype}))
 }
 
-fn parse_argtype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> ArgTypeNode {
-	let n = try_parse!(iter, INT, n);
-	ArgTypeNode {n: n}
+fn parse_argtype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<ArgTypeNode, ParseError> {
+	let n = try_parse!(iter, INT);
+	Ok(ArgTypeNode {n: n})
 }
 
-fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Option<StmtNode<'a>> {
-	match iter.peek().expect("parse error: at EOF, expected LABEL, OP, VAR, or RBR").value {
+fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<StmtNode<'a>>, ParseError> {
+	match iter.peek().ok_or(parse_eof_expected!(LABEL, OP, VAR, RBR))?.value {
 		TokenValue::LABEL => {
 			iter.next();
-			let name = try_parse!(iter, NAME, name);
-			Some(StmtNode::Label(LabelNode {name: name}))
+			let name = try_parse!(iter, NAME);
+			Ok(Some(StmtNode::Label(LabelNode {name: name})))
 		},
 		TokenValue::OP => {
 			iter.next();
-			let name = try_parse!(iter, NAME, name);
+			let name = try_parse!(iter, NAME);
 			let mut args: Vec<ValueNode<'a>> = Vec::new();
-			while let Some(arg) = parse_value(iter) {
+			while let Some(arg) = parse_value(iter)? {
 				args.push(arg);
 			}
-			Some(StmtNode::Op(OpNode {name: name, args: args}))
+			Ok(Some(StmtNode::Op(OpNode {name: name, args: args})))
 		},
 		TokenValue::VAR => {
 			iter.next();
-			let name = try_parse!(iter, NAME, name);
-			let vartype = parse_vartype(iter);
-			Some(StmtNode::Var(VarNode {name: name, vartype}))
+			let name = try_parse!(iter, NAME);
+			let vartype = parse_vartype(iter)?;
+			Ok(Some(StmtNode::Var(VarNode {name: name, vartype})))
 		},
-		TokenValue::RBR => None,
-		_ => {
-			panic!("parse error: expected LABEL, OP, VAR, or RBR");
-		},
+		TokenValue::RBR => Ok(None),
+		_ => throw_parse_eof_expected!(LABEL, OP, VAR, RBR),
 	}
 }
 
-fn parse_vartype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> VarTypeNode {
-	let n = try_parse!(iter, INT, n);
-	VarTypeNode {n: n}
+fn parse_vartype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
+	let n = try_parse!(iter, INT);
+	Ok(VarTypeNode {n: n})
 }
 
-fn parse_value<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Option<ValueNode<'a>> {
-	match iter.peek().expect("parse error: at EOF, expected NAME or INT").value {
+fn parse_value<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ValueNode<'a>>, ParseError> {
+	match iter.peek().ok_or(parse_eof_expected!(NAME, INT))?.value {
 		TokenValue::NAME(name) => {
 			iter.next();
-			Some(ValueNode::Name(name))
+			Ok(Some(ValueNode::Name(name)))
 		},
 		TokenValue::INT(n) => {
 			iter.next();
-			Some(ValueNode::Int(n))
+			Ok(Some(ValueNode::Int(n)))
 		},
-		_ => None,
+		_ => Ok(None),
 	}
 }
 
