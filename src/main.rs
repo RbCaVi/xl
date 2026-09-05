@@ -1,8 +1,10 @@
 mod lexer;
 mod parser;
+mod compile;
 
 use lexer::{Lexer, TokenValue};
-use crate::parser::{parse};
+use parser::parse;
+use compile::compile;
 
 fn main() {
     let content = r#"
@@ -32,5 +34,11 @@ proc swap (in out a 4, in out b 4) {
             TokenValue::INT(i) => {println!("INT {}", i);}
         }
     }
-    println!("{:#?}", parse(Lexer::new(content).map(|x| {println!("{:?}", x); x})));
+    let tree = match parse(Lexer::new(content).map(|x| {println!("{:?}", x); x})) {
+        Err(_) => return,
+        Ok(tree) => tree,
+    };
+    println!("{:#?}", tree);
+    let compiled = compile(&tree);
+    println!("{:#?}", compiled);
 }

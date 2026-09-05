@@ -159,8 +159,8 @@ fn parse_procarg<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> R
 }
 
 fn parse_argtype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<ArgTypeNode, ParseError> {
-	let n = try_parse!(iter, INT);
-	Ok(ArgTypeNode {n: n})
+	let size = try_parse!(iter, INT);
+	Ok(ArgTypeNode {size: size})
 }
 
 fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<StmtNode<'a>>, ParseError> {
@@ -191,8 +191,8 @@ fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 }
 
 fn parse_vartype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
-	let n = try_parse!(iter, INT);
-	Ok(VarTypeNode {n: n})
+	let size = try_parse!(iter, INT);
+	Ok(VarTypeNode {size: size})
 }
 
 fn parse_value<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ValueNode<'a>>, ParseError> {
@@ -211,7 +211,7 @@ fn parse_value<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Res
 
 #[derive(Debug)]
 pub struct CodeNode<'a> {
-	code: Vec<ItemNode<'a>>,
+	pub code: Vec<ItemNode<'a>>,
 }
 
 #[derive(Debug)]
@@ -221,9 +221,17 @@ pub enum ItemNode<'a> {
 
 #[derive(Debug)]
 pub struct ProcNode<'a> {
-	name: &'a str,
-	args: Vec<ProcArgNode<'a>>,
-	code: Vec<StmtNode<'a>>,
+	pub name: &'a str,
+	pub args: Vec<ProcArgNode<'a>>,
+	pub code: Vec<StmtNode<'a>>,
+}
+
+impl<'a> ItemNode<'a> {
+	pub fn get_name(&self) -> &'a str {
+		match &self {
+			ItemNode::Proc(proc) => proc.name,
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -235,13 +243,13 @@ pub enum StmtNode<'a> {
 
 #[derive(Debug)]
 pub struct LabelNode<'a> {
-	name: &'a str,
+	pub name: &'a str,
 }
 
 #[derive(Debug)]
 pub struct OpNode<'a> {
-	name: &'a str,
-	args: Vec<ValueNode<'a>>,
+	pub name: &'a str,
+	pub args: Vec<ValueNode<'a>>,
 }
 
 #[derive(Debug)]
@@ -252,24 +260,24 @@ pub enum ValueNode<'a> {
 
 #[derive(Debug)]
 pub struct VarNode<'a> {
-	name: &'a str,
-	vartype: VarTypeNode,
+	pub name: &'a str,
+	pub vartype: VarTypeNode,
 }
 
 #[derive(Debug)]
 pub struct ProcArgNode<'a> {
-	in_: bool,
-	out: bool,
-	name: &'a str,
-	argtype: ArgTypeNode,
+	pub in_: bool,
+	pub out: bool,
+	pub name: &'a str,
+	pub argtype: ArgTypeNode,
 }
 
 #[derive(Debug)]
 pub struct VarTypeNode { // will probably have more fields later
-	n: i32,
+	pub size: i32,
 }
 
 #[derive(Debug)]
 pub struct ArgTypeNode { // will probably have more fields later
-	n: i32,
+	pub size: i32,
 }
