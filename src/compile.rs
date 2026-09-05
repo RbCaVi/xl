@@ -12,7 +12,6 @@ pub struct Compiled {
 	// nah vec is faster frfr
 	// idk bru h
 	callables: Vec<Callable>,
-	symbols: HashMap<String, usize>,
 }
 
 #[derive(Debug)]
@@ -77,7 +76,7 @@ impl From<&VarTypeNode> for Type {
 	}
 }
 
-pub fn compile<'a>(code: &CodeNode<'a>) -> Compiled {
+pub fn compile<'a>(code: &CodeNode<'a>) -> (Compiled, HashMap<&'a str, usize>) { // returns an executable code object and a mapping of names to callables
 	// first find names
 	// error on redefining a proc
 	// loop through statements
@@ -94,7 +93,7 @@ pub fn compile<'a>(code: &CodeNode<'a>) -> Compiled {
 		}
 		callables.push(item);
 	}
-	Compiled {callables: callables.into_iter().map(|c| compile_callable(c, &callablemap)).collect(), symbols:  callablemap.into_iter().map(|(k,v)| (k.into(), v)).collect()}
+	(Compiled {callables: callables.into_iter().map(|c| compile_callable(c, &callablemap)).collect()}, callablemap)
 }
 
 pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usize>) -> Callable {
