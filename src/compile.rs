@@ -12,6 +12,7 @@ pub struct Compiled {
 	// nah vec is faster frfr
 	// idk bru h
 	callables: Vec<Callable>,
+	symbols: HashMap<String, usize>,
 }
 
 #[derive(Debug)]
@@ -50,7 +51,7 @@ pub enum Builtin {
 
 #[derive(Debug)]
 pub enum Value {
-	Var(String),
+	Var(usize),
 	Int(i32),
 }
 
@@ -93,7 +94,7 @@ pub fn compile<'a>(code: &CodeNode<'a>) -> Compiled {
 		}
 		callables.push(item);
 	}
-	Compiled {callables: callables.into_iter().map(|c| compile_callable(c, &callablemap)).collect()}
+	Compiled {callables: callables.into_iter().map(|c| compile_callable(c, &callablemap)).collect(), symbols:  callablemap.into_iter().map(|(k,v)| (k.into(), v)).collect()}
 }
 
 pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usize>) -> Callable {
@@ -135,7 +136,7 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 							name: get_op(op.name, callablemap),
 							args: op.args.iter().map(|arg| {
 								match arg {
-									ValueNode::Name(name) => Value::Var((*name).into()),
+									ValueNode::Name(name) => Value::Var(*varmap.get(name).unwrap()),
 									ValueNode::Int(n) => Value::Int(*n),
 								}
 							}).collect(),
