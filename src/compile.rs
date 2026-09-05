@@ -11,7 +11,7 @@ pub struct Compiled {
 	// probably in a hashmap tbh
 	// nah vec is faster frfr
 	// idk bru h
-	callables: Vec<Callable>,
+	pub callables: Vec<Callable>,
 }
 
 #[derive(Debug)]
@@ -25,15 +25,16 @@ pub struct Proc {
 	// how do the jumps work?
 	// idk just index into the instructions array
 	// who cares
-	vars: Vec<Var>,
-	code: Vec<Op>,
+	pub argcount: usize,
+	pub vars: Vec<Var>,
+	pub code: Vec<Op>,
 }
 
 #[derive(Debug)]
 pub struct Op {
-	name: OpName, // references a proc from the grandparent Compiled // so maybe Proc has to be private too? idk whatever // private constructors and mutability
-	args: Vec<Value>,
-	targets: Vec<usize>, // indexes into the parent Proc's code // probably means this has to be a private type maybe // also has to match the number of targets given by the Proc or builtin it's referencing
+	pub name: OpName, // references a proc from the grandparent Compiled // so maybe Proc has to be private too? idk whatever // private constructors and mutability
+	pub args: Vec<Arg>,
+	pub targets: Vec<usize>, // indexes into the parent Proc's code // probably means this has to be a private type maybe // also has to match the number of targets given by the Proc or builtin it's referencing
 }
 
 #[derive(Debug)]
@@ -49,19 +50,19 @@ pub enum Builtin {
 }
 
 #[derive(Debug)]
-pub enum Value {
+pub enum Arg {
 	Var(usize),
 	Int(i32),
 }
 
 #[derive(Debug)]
 pub struct Var {
-	vartype: Type,
+	pub vartype: Type,
 }
 
 #[derive(Debug)]
 pub struct Type {
-	size: i32,
+	pub size: i32,
 }
 
 impl From<&ArgTypeNode> for Type {
@@ -135,8 +136,8 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 							name: get_op(op.name, callablemap),
 							args: op.args.iter().map(|arg| {
 								match arg {
-									ValueNode::Name(name) => Value::Var(*varmap.get(name).unwrap()),
-									ValueNode::Int(n) => Value::Int(*n),
+									ValueNode::Name(name) => Arg::Var(*varmap.get(name).unwrap()),
+									ValueNode::Int(n) => Arg::Int(*n),
 								}
 							}).collect(),
 							targets: vec!(ops.len() + 1),
@@ -150,6 +151,7 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 			}
 			ops.push(Op {name: OpName::Builtin(Builtin::RET), args: vec!(), targets: vec!()});
 			Callable::Proc(Proc {
+				argcount: proc.args.len(),
 				vars: vars,
 				code: ops,
 			})
