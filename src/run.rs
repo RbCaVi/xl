@@ -89,8 +89,17 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						break ExecResult;
 					},
 					OpName::Builtin(Builtin::SET) => {
-						assert!(op.args.len() == 2 && op.targets.len() == 1);
-						assert!(opargs[0].valtype == opargs[1].valtype);
+						match &opargs[..] {
+							[Value {valtype: vt1, ..}, Value {valtype: vt2, ..}] if vt1 == vt2 => (),
+							_ => panic!("no"),
+						}
+						match &op.targets[..] {
+							[Target {vars: vars, ..}] => match &vars[..] {
+								[] => (),
+								_ => panic!("no"),
+							},
+							_ => panic!("no"),
+						}
 						opargs[0].set(&*opargs[1].get());
 					},
 				}
