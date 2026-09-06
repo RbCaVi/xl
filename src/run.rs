@@ -9,9 +9,10 @@
 // hold multiple references and
 // ok probably rc refcell data
 
-use crate::compile::{Compiled, OpName, Builtin, Arg, Callable, Type};
+use crate::compile::{Compiled, OpName, Builtin, Arg, Callable, Type, Target};
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
+use std::iter::zip;
 
 #[derive(Clone, Debug)]
 pub struct Value {
@@ -52,7 +53,10 @@ impl Value {
 
 // what is this
 // i think a out control index + out var values
-pub struct ExecResult;
+pub struct ExecResult {
+	target: usize,
+	vals: Vec<Value>,
+}
 
 pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 	// execute a callable at the given index
@@ -72,7 +76,7 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						Arg::Int(n) => Value::new_i32(*n),
 					}
 				}).collect();
-				match op.name {
+				let result = match op.name {
 					OpName::UserDef(idx) => {
 						// uhh like execute() it
 						// maybe later divorce the language stack from rust's stack
@@ -86,7 +90,7 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 					},
 					OpName::Builtin(Builtin::RET) => {
 						assert!(op.args.len() == 0 && op.targets.len() == 0);
-						break ExecResult;
+						return ExecResult {target: 0, vals: vec!()};
 					},
 					OpName::Builtin(Builtin::SET) => {
 						match &opargs[..] {
@@ -101,9 +105,14 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 							_ => panic!("no"),
 						}
 						opargs[0].set(&*opargs[1].get());
+						ExecResult {target: 0, vals: vec!()}
 					},
-				}
-				pc += 1;
+				};
+				let ExecResult {target, vals} = result;
+				let Target {target, vars: tvars} = &op.targets[target];
+				assert!(vals.len() == tvars.len());
+				zip(tvars.iter(), vals.iter()).for_each(|(var, val)| vars[*var].set(&*val.get()));
+				pc = *target; // target
 			}
 		},
 	}

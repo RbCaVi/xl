@@ -34,7 +34,13 @@ pub struct Proc {
 pub struct Op {
 	pub name: OpName, // references a proc from the grandparent Compiled // so maybe Proc has to be private too? idk whatever // private constructors and mutability
 	pub args: Vec<Arg>,
-	pub targets: Vec<usize>, // indexes into the parent Proc's code // probably means this has to be a private type maybe // also has to match the number of targets given by the Proc or builtin it's referencing
+	pub targets: Vec<Target>, // indexes into the parent Proc's code // probably means this has to be a private type maybe // also has to match the number of targets given by the Proc or builtin it's referencing
+}
+
+#[derive(Debug)]
+pub struct Target {
+	pub target: usize,
+	pub vars: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -140,7 +146,7 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 									ValueNode::Int(n) => Arg::Int(*n),
 								}
 							}).collect(),
-							targets: vec!(ops.len() + 1),
+							targets: vec!(Target {target: ops.len() + 1, vars: vec!()}),
 						});
 					},
 					StmtNode::Var(var) => {
