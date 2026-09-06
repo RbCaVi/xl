@@ -23,9 +23,9 @@ proc swap (in out a 4, in out b 4) {
     };
     //println!("{:#?}", tree);
     let (compiled, symbols) = compile(&tree);
-    println!("{:#?} {:#?}", compiled, symbols);
+    println!("{:?} {:?}", compiled, symbols);
     let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1));
-    println!("{:#?}", args);
-    execute(compiled, 0, &args);
-    println!("{:#?}", args);
+    println!("{:?}", args);
+    execute(&compiled, 0, &args);
+    println!("{:?}", args);
 }

@@ -54,7 +54,7 @@ impl Value {
 // i think a out control index + out var values
 pub struct ExecResult;
 
-pub fn execute(code: Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
+pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 	// execute a callable at the given index
 	match &code.callables[index] {
 		Callable::Proc(proc) => {
@@ -81,7 +81,8 @@ pub fn execute(code: Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						// execute()
 						// wait do i need to return a result
 						// or not?
-						todo!()
+						// yea probably
+						execute(code, idx, &opargs)
 					},
 					OpName::Builtin(Builtin::RET) => {
 						assert!(op.args.len() == 0 && op.targets.len() == 0);
