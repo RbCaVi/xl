@@ -90,6 +90,7 @@ pub enum TokenValue<'a> {
 	RBR,
 	COMMA,
 	AMP,
+	ARROW,
 	PROC,
 	FN,
 	LABEL,
@@ -127,7 +128,16 @@ impl<'a> Iterator for Lexer<'a> {
 				try_single_char_token!('}', TokenValue::RBR);
 				try_single_char_token!(',', TokenValue::COMMA);
 				try_single_char_token!('&', TokenValue::AMP);
-				if c.is_ascii_alphabetic() || c == '_' {
+				if c == '-' {
+					if self.iter.peek() == Some('>') {
+						self.iter.next();
+						Some(Token {
+							source: &self.source,
+							text: &self.source[start..start + 2],
+							value: TokenValue::ARROW,
+						})
+					}
+				} else if c.is_ascii_alphabetic() || c == '_' {
 					// take as many alphanumeric characters as possible
 					let end = loop {
 						match self.iter.peek() {
