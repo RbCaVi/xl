@@ -15,10 +15,17 @@ proc swap (in out a 4, in out b 4) {
     op set temp a
     op set a b
     op set b temp
-}"#;
+}
+proc f (in out a 4, in out b 4, in c 4) {
+    op ifz -> l1, l2
+    label l1
+    op swap a b
+    label l2
+}
+"#;
     println!("{}", content);
     let tree = match parse(Lexer::new(content).map(|x| {println!("{:?}", x.value); x})) {
-        Err(_) => return,
+        Err(err) => {println!("no tree {:?}", err); return;},
         Ok(tree) => tree,
     };
     //println!("{:#?}", tree);

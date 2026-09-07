@@ -61,6 +61,7 @@ macro_rules! try_parse {
 	($iter:ident, RBR) => (_try_parse_empty!($iter, RBR));
 	($iter:ident, COMMA) => (_try_parse_empty!($iter, COMMA));
 	($iter:ident, AMP) => (_try_parse_empty!($iter, AMP));
+	($iter:ident, ARROW) => (_try_parse_empty!($iter, ARROW));
 	($iter:ident, PROC) => (_try_parse_empty!($iter, PROC));
 	($iter:ident, FN) => (_try_parse_empty!($iter, FN));
 	($iter:ident, LABEL) => (_try_parse_empty!($iter, LABEL));
@@ -177,7 +178,21 @@ fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 			while let Some(arg) = parse_value(iter)? {
 				args.push(arg);
 			}
-			Ok(Some(StmtNode::Op(OpNode {name: name, args: args})))
+			let targets = if let Some(Token {value: TokenValue::ARROW, ..}) = iter.peek() {
+				// parse a bunch of targets
+				// how
+				iter.next();
+				let mut targets: Vec<TargetNode<'a>> = Vec::new();
+				targets.push(parse_target(iter)?);
+				while let Some(Token {value: TokenValue::COMMA, ..}) = iter.peek() {
+					iter.next();
+					targets.push(parse_target(iter)?);
+				}
+				targets
+			} else {
+				vec!()
+			};
+			Ok(Some(StmtNode::Op(OpNode {name: name, args: args, targets: targets})))
 		},
 		TokenValue::VAR => {
 			iter.next();
@@ -186,8 +201,16 @@ fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 			Ok(Some(StmtNode::Var(VarNode {name: name, vartype})))
 		},
 		TokenValue::RBR => Ok(None),
-		_ => throw_parse_eof_expected!(LABEL, OP, VAR, RBR),
+		_ => throw_parse_expected!(LABEL, OP, VAR, RBR),
 	}
+}
+
+fn parse_target<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<TargetNode<'a>, ParseError> {
+	// ok a name plus possible (vars,*)
+	// delimited by comma or uhh actually just anything not a name
+	// start with just the name
+	let name = try_parse!(iter, NAME);
+	Ok(TargetNode {name: name, vars: vec!()})
 }
 
 fn parse_vartype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
@@ -250,6 +273,13 @@ pub struct LabelNode<'a> {
 pub struct OpNode<'a> {
 	pub name: &'a str,
 	pub args: Vec<ValueNode<'a>>,
+	pub targets: Vec<TargetNode<'a>>,
+}
+
+#[derive(Debug)]
+pub struct TargetNode<'a> {
+	pub name: &'a str,
+	pub vars: Vec<&'a str>,
 }
 
 #[derive(Debug)]
