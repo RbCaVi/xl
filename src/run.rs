@@ -107,6 +107,21 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						opargs[0].set(&*opargs[1].get());
 						ExecResult {target: 0, vals: vec!()}
 					},
+					OpName::Builtin(Builtin::IFZ) => {
+						match &opargs[..] {
+							[_] => (),
+							_ => panic!("no"),
+						}
+						match &op.targets[..] {
+							[Target {vars: vars1, ..}, Target {vars: vars2, ..}] => match (&vars1[..], &vars2[..]) {
+								([], []) => (),
+								_ => panic!("no"),
+							},
+							_ => panic!("no"),
+						}
+
+						ExecResult {target: if opargs[0].get().iter().all(|n| *n == 0) {0} else {1}, vals: vec!()}
+					},
 				};
 				let ExecResult {target, vals} = result;
 				let Target {target, vars: tvars} = &op.targets[target];

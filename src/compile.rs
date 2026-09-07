@@ -53,6 +53,7 @@ pub enum OpName {
 pub enum Builtin {
 	RET,
 	SET,
+	IFZ,
 }
 
 #[derive(Debug)]
@@ -122,15 +123,16 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 			// oh yeah i need to grab labels
 			// and i don't want to do a single pass method
 			let mut labelmap: HashMap<&str, usize> = HashMap::new();
-			for (i, stmt) in proc.code.iter().enumerate() {
+			let mut stmtcount = 0;
+			for stmt in proc.code.iter() {
 				match stmt {
 					StmtNode::Label(label) => {
-						match labelmap.insert(label.name, i) {
+						match labelmap.insert(label.name, stmtcount) {
 							Some(_) => panic!("duplicate label name :(((((("),
 							None => (),
 						}
 					},
-					_ => (),
+					_ => {stmtcount += 1;},
 				}
 			}
 			let mut ops: Vec<Op> = Vec::new();
@@ -146,7 +148,7 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 									ValueNode::Int(n) => Arg::Int(*n),
 								}
 							}).collect(),
-							targets: vec!(Target {target: ops.len() + 1, vars: vec!()}),
+							targets: if op.targets.len() == 0 {vec!(Target {target: ops.len() + 1, vars: vec!()})} else {op.targets.iter().map(|target| Target {target: *labelmap.get(target.name).unwrap(), vars: vec!()}).collect()},
 						});
 					},
 					StmtNode::Var(var) => {
@@ -170,6 +172,8 @@ fn get_op(name: &str, callablemap: &HashMap<&str, usize>) -> OpName {
 		OpName::UserDef(*i)
 	} else if name == "set" {
 		OpName::Builtin(Builtin::SET)
+	} else if name == "ifz" {
+		OpName::Builtin(Builtin::IFZ)
 	} else {
 		panic!("what callable is {:?} ???", name);
 	}
