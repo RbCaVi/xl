@@ -81,6 +81,24 @@ pub struct Token<'a> {
 	pub value: TokenValue<'a>,
 }
 
+impl<'a> Token<'a> {
+	fn single_char(source: &'a str, start: usize, value: TokenValue<'a>) -> Token<'a> {
+		Token::sized(source, start, 1, value)
+	}
+
+	fn sized(source: &'a str, start: usize, size: usize, value: TokenValue<'a>) -> Token<'a> {
+		Token::new(source, start, start + size, value)
+	}
+
+	fn new(source: &'a str, start: usize, end: usize, value: TokenValue<'a>) -> Token<'a> {
+		Token {
+			source: source,
+			text: &source[start..end],
+			value: value,
+		}
+	}
+}
+
 // and the value
 #[derive(Debug)]
 pub enum TokenValue<'a> {
@@ -111,82 +129,63 @@ impl<'a> Iterator for Lexer<'a> {
 			None => None,
 			Some((start, c)) => {
 				// test the first character
-				macro_rules! try_single_char_token {
-					($char:expr, $type:expr) => {
-						if c == $char {
-							return Some(Token {
-								source: &self.source,
-								text: &self.source[start..start + 1],
-								value: $type,
-							})
+				match c {
+					'(' => Some(Token::single_char(&self.source, start, TokenValue::LPAR)),
+					')' => Some(Token::single_char(&self.source, start, TokenValue::RPAR)),
+					'{' => Some(Token::single_char(&self.source, start, TokenValue::LBR)),
+					'}' => Some(Token::single_char(&self.source, start, TokenValue::RBR)),
+					',' => Some(Token::single_char(&self.source, start, TokenValue::COMMA)),
+					'&' => Some(Token::single_char(&self.source, start, TokenValue::AMP)),
+					'-' => {
+						if let Some((_, '>')) = self.iter.peek() {
+							self.iter.next();
+						} else {
+							panic!("- always makes an arrow bro");
 						}
-					}
-				}
-				try_single_char_token!('(', TokenValue::LPAR);
-				try_single_char_token!(')', TokenValue::RPAR);
-				try_single_char_token!('{', TokenValue::LBR);
-				try_single_char_token!('}', TokenValue::RBR);
-				try_single_char_token!(',', TokenValue::COMMA);
-				try_single_char_token!('&', TokenValue::AMP);
-				if c == '-' {
-					if self.iter.peek() == Some('>') {
-						self.iter.next();
-						Some(Token {
-							source: &self.source,
-							text: &self.source[start..start + 2],
-							value: TokenValue::ARROW,
-						})
-					}
-				} else if c.is_ascii_alphabetic() || c == '_' {
-					// take as many alphanumeric characters as possible
-					let end = loop {
-						match self.iter.peek() {
-							None => break self.source.len(),
-							Some((end, c)) => {
-								if !(c.is_ascii_alphanumeric() || *c == '_') {
-									break *end;
-								} else {
-									self.iter.next();
+						Some(Token::sized(&self.source, start, 2, TokenValue::ARROW))
+					},
+					_ if c.is_ascii_alphabetic() || c == '_' => {
+						// take as many alphanumeric characters as possible
+						let end = loop {
+							match self.iter.peek() {
+								None => break self.source.len(),
+								Some((end, c)) => {
+									if !(c.is_ascii_alphanumeric() || *c == '_') {
+										break *end;
+									} else {
+										self.iter.next();
+									}
 								}
 							}
-						}
-					};
-					let text = &self.source[start..end];
-					Some(Token {
-						source: &self.source,
-						text: &self.source[start..end],
-						value: 
-							if text == "proc" {TokenValue::PROC}
-							else if text == "fn" {TokenValue::FN}
-							else if text == "label" {TokenValue::LABEL}
-							else if text == "op" {TokenValue::OP}
-							else if text == "var" {TokenValue::VAR}
-							else if text == "in" {TokenValue::IN}
-							else if text == "out" {TokenValue::OUT}
-							else {TokenValue::NAME(&self.source[start..end])},
-					})
-				} else if c.is_ascii_digit() {
-					// take as many digits as possible
-					let end = loop {
-						match self.iter.peek() {
-							None => break self.source.len(),
-							Some((end, c)) => {
-								if !c.is_ascii_digit() {
-									break *end;
-								} else {
-									self.iter.next();
+						};
+						Some(Token::new(&self.source, start, end, match &self.source[start..end] {
+							"proc" => TokenValue::PROC,
+							"fn" => TokenValue::FN,
+							"label" => TokenValue::LABEL,
+							"op" => TokenValue::OP,
+							"var" => TokenValue::VAR,
+							"in" => TokenValue::IN,
+							"out" => TokenValue::OUT,
+							text => TokenValue::NAME(text),
+						}))
+					 },
+					_ if c.is_ascii_digit() => {
+						// take as many digits as possible
+						let end = loop {
+							match self.iter.peek() {
+								None => break self.source.len(),
+								Some((end, c)) => {
+									if !c.is_ascii_digit() {
+										break *end;
+									} else {
+										self.iter.next();
+									}
 								}
 							}
-						}
-					};
-					Some(Token {
-						source: &self.source,
-						text: &self.source[start..end],
-						value: TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits")),
-					})
-				} else {
-					// die
-					panic!("nooo unrecognized thing error");
+						};
+						Some(Token::new(&self.source, start, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits"))))
+					},
+					_ => panic!("nooo unrecognized thing error"),
 				}
 			}
 		}
