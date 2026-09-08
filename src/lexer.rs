@@ -125,69 +125,58 @@ impl<'a> Iterator for Lexer<'a> {
 
 	fn next(&mut self) -> Option<Token<'a>> {
 		self.skip_whitespace();
-		match self.iter.next() {
-			None => None,
-			Some((start, c)) => {
-				// test the first character
-				match c {
-					'(' => Some(Token::single_char(&self.source, start, TokenValue::LPAR)),
-					')' => Some(Token::single_char(&self.source, start, TokenValue::RPAR)),
-					'{' => Some(Token::single_char(&self.source, start, TokenValue::LBR)),
-					'}' => Some(Token::single_char(&self.source, start, TokenValue::RBR)),
-					',' => Some(Token::single_char(&self.source, start, TokenValue::COMMA)),
-					'&' => Some(Token::single_char(&self.source, start, TokenValue::AMP)),
-					'-' => {
-						if let Some((_, '>')) = self.iter.peek() {
-							self.iter.next();
-						} else {
-							panic!("- always makes an arrow bro");
-						}
-						Some(Token::sized(&self.source, start, 2, TokenValue::ARROW))
-					},
-					_ if c.is_ascii_alphabetic() || c == '_' => {
-						// take as many alphanumeric characters as possible
-						let end = loop {
-							match self.iter.peek() {
-								None => break self.source.len(),
-								Some((end, c)) => {
-									if !(c.is_ascii_alphanumeric() || *c == '_') {
-										break *end;
-									} else {
-										self.iter.next();
-									}
-								}
-							}
-						};
-						Some(Token::new(&self.source, start, end, match &self.source[start..end] {
-							"proc" => TokenValue::PROC,
-							"fn" => TokenValue::FN,
-							"label" => TokenValue::LABEL,
-							"op" => TokenValue::OP,
-							"var" => TokenValue::VAR,
-							"in" => TokenValue::IN,
-							"out" => TokenValue::OUT,
-							text => TokenValue::NAME(text),
-						}))
-					 },
-					_ if c.is_ascii_digit() => {
-						// take as many digits as possible
-						let end = loop {
-							match self.iter.peek() {
-								None => break self.source.len(),
-								Some((end, c)) => {
-									if !c.is_ascii_digit() {
-										break *end;
-									} else {
-										self.iter.next();
-									}
-								}
-							}
-						};
-						Some(Token::new(&self.source, start, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits"))))
-					},
-					_ => panic!("nooo unrecognized thing error"),
+		let (start, c) = self.iter.next()?;
+		macro_rules! token {
+			($kind:ident, $($args:expr),*) => (Some(Token::$kind(&self.source, start, $($args),*)))
+		}
+		// test the first character
+		match c {
+			'(' => token!(single_char, TokenValue::LPAR),
+			')' => token!(single_char, TokenValue::RPAR),
+			'{' => token!(single_char, TokenValue::LBR),
+			'}' => token!(single_char, TokenValue::RBR),
+			',' => token!(single_char, TokenValue::COMMA),
+			'&' => token!(single_char, TokenValue::AMP),
+			'-' => {
+				if let Some((_, '>')) = self.iter.peek() {
+					self.iter.next();
+				} else {
+					panic!("- always makes an arrow bro");
 				}
-			}
+				token!(sized, 2, TokenValue::ARROW)
+			},
+			_ if c.is_ascii_alphabetic() || c == '_' => {
+				// take as many alphanumeric characters as possible
+				let end = loop {
+					match self.iter.peek() {
+						None => break self.source.len(),
+						Some((_, c)) if c.is_ascii_alphanumeric() || *c == '_' => {self.iter.next();},
+						Some((end, _)) => break *end,
+					}
+				};
+				token!(new, end, match &self.source[start..end] {
+					"proc" => TokenValue::PROC,
+					"fn" => TokenValue::FN,
+					"label" => TokenValue::LABEL,
+					"op" => TokenValue::OP,
+					"var" => TokenValue::VAR,
+					"in" => TokenValue::IN,
+					"out" => TokenValue::OUT,
+					text => TokenValue::NAME(text),
+				})
+			},
+			_ if c.is_ascii_digit() => {
+				// take as many digits as possible
+				let end = loop {
+					match self.iter.peek() {
+						None => break self.source.len(),
+						Some((_, c)) if c.is_ascii_digit() => {self.iter.next();},
+						Some((end, _)) => break *end,
+					}
+				};
+				token!(new, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits")))
+			},
+			_ => panic!("nooo unrecognized thing error"),
 		}
 	}
 }
