@@ -13,14 +13,15 @@ use crate::compile::{Compiled, OpName, Builtin, Arg, Callable, Type, Target};
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
 use std::iter::zip;
+use std::fmt::{self, Debug, Formatter};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Value {
 	data: Rc<RefCell<Vec<u8>>>,
 	valtype: VType,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone)]
 struct VType {
 	size: i32,
 }
@@ -49,6 +50,25 @@ impl Value {
 	fn get(&self) -> Ref<'_, [u8]> {
 		Ref::map(self.data.borrow(), |v| &**v)
 	}
+}
+
+// should i be overriding the Debug implementation like this?
+impl Debug for VType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+	    write!(f, "b{}", self.size)?;
+    	Ok(())
+    }
+}
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+	    write!(f, "Value {{ 0x")?;
+    	for b in self.data.borrow().iter().rev() {
+	        write!(f, "{:02x}", b)?
+    	}
+	    write!(f, ": {:?} }}", self.valtype)?;
+    	Ok(())
+    }
 }
 
 // what is this
