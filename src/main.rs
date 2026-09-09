@@ -29,8 +29,13 @@ proc cswap (in out a 4, in out b 4, in c 4) {
         Ok(tree) => tree,
     };
     //println!("{:#?}", tree);
-    let (compiled, symbols) = compile(&tree);
+    let (compiled, symbols) = match compile(&tree) {
+        Err(err) => {println!("no compile {:?}", err); return;},
+        Ok(cs) => cs,
+    };
+
     println!("{:?} {:?}", compiled, symbols);
+
     let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1));
     println!("{:?}", args);
     execute(&compiled, *symbols.get("swap").unwrap(), &args);

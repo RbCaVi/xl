@@ -44,7 +44,7 @@ impl From<LexerError> for ParseError {
 
 impl From<&LexerError> for ParseError {
 	fn from(err: &LexerError) -> ParseError {
-		ParseError::Lex(LexerError {text: err.text})
+		ParseError::Lex(err.clone())
 	}
 }
 

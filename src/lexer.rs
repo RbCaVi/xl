@@ -81,7 +81,7 @@ pub struct Token<'a> {
 	pub value: TokenValue<'a>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LexerError {
 	pub text: &'static str,
 }
@@ -146,7 +146,7 @@ impl<'a> Iterator for Lexer<'a> {
 				if let Some((_, '>')) = self.iter.peek() {
 					self.iter.next();
 				} else {
-					Err(LexerError {text: "bro i thought it would be all digits"})?
+					return Some(Err(LexerError {text: "- always makes an arrow bro"}))
 				}
 				token!(sized, 2, TokenValue::ARROW)
 			},
@@ -179,9 +179,9 @@ impl<'a> Iterator for Lexer<'a> {
 						Some((end, _)) => break *end,
 					}
 				};
-				token!(new, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits")) // this is expect() ed because the input was just checked to be all digits
+				token!(new, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits"))) // this is expect() ed because the input was just checked to be all digits
 			},
-			_ => Err(LexerError {text: "nooo unrecognized thing error"})?,
+			_ => return Some(Err(LexerError {text: "nooo unrecognized thing error"})),
 		}
 	}
 }

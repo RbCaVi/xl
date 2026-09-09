@@ -84,7 +84,12 @@ impl From<&VarTypeNode> for Type {
 	}
 }
 
-pub fn compile<'a>(code: &CodeNode<'a>) -> (Compiled, HashMap<&'a str, usize>) { // returns an executable code object and a mapping of names to callables
+#[derive(Debug)]
+pub struct CompileError {
+	pub text: &'static str,
+}
+
+pub fn compile<'a>(code: &CodeNode<'a>) -> Result<(Compiled, HashMap<&'a str, usize>), CompileError> { // returns an executable code object and a mapping of names to callables
 	// first find names
 	// error on redefining a proc
 	// loop through statements
@@ -96,15 +101,21 @@ pub fn compile<'a>(code: &CodeNode<'a>) -> (Compiled, HashMap<&'a str, usize>) {
 	let mut callables: Vec<&ItemNode> = Vec::new();
 	for item in &code.code {
 		match callablemap.insert(item.get_name(), callables.len()) {
-			Some(_) => panic!("duplicate proc name :((("),
+			Some(_) => Err(CompileError {text: "duplicate proc name :((("})?,
 			None => (),
 		}
 		callables.push(item);
 	}
-	(Compiled {callables: callables.into_iter().map(|c| compile_callable(c, &callablemap)).collect()}, callablemap)
+	Ok((Compiled {callables: {
+		let mut compiled: Vec<Callable> = Vec::new();
+		for callable in callables {
+			compiled.push(compile_callable(callable, &callablemap)?)
+		}
+		compiled
+	}}, callablemap))
 }
 
-pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usize>) -> Callable {
+pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usize>) -> Result<Callable, CompileError> {
 	match item {
 		ItemNode::Proc(proc) => {
 			// it's possible to make a single pass variable resolver
@@ -128,7 +139,7 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 				match stmt {
 					StmtNode::Label(label) => {
 						match labelmap.insert(label.name, stmtcount) {
-							Some(_) => panic!("duplicate label name :(((((("),
+							Some(_) => Err(CompileError {text: "duplicate label name :((("})?,
 							None => (),
 						}
 					},
@@ -142,13 +153,27 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 					StmtNode::Op(op) => {
 						ops.push(Op {
 							name: get_op(op.name, callablemap),
-							args: op.args.iter().map(|arg| {
-								match arg {
-									ValueNode::Name(name) => Arg::Var(*varmap.get(name).unwrap()),
-									ValueNode::Int(n) => Arg::Int(*n),
+							args: {
+								let mut args: Vec<Arg> = Vec::new();
+								for arg in &op.args {
+									args.push(match arg {
+										ValueNode::Name(name) => Arg::Var(*varmap.get(name).ok_or(CompileError {text: "reference to nonexistent variable"})?),
+										ValueNode::Int(n) => Arg::Int(*n),
+									});
 								}
-							}).collect(),
-							targets: if op.targets.len() == 0 {vec!(Target {target: ops.len() + 1, vars: vec!()})} else {op.targets.iter().map(|target| Target {target: *labelmap.get(target.name).unwrap(), vars: vec!()}).collect()},
+								args
+							},
+							targets: if op.targets.len() == 0 {
+								vec!(Target {target: ops.len() + 1, vars: vec!()})
+							} else {
+								let mut targets: Vec<Target> = Vec::new();
+								for target in &op.targets {
+									targets.push(Target {
+										target: *labelmap.get(target.name).ok_or(CompileError {text: "reference to nonexistent label"})?, vars: vec!()
+									});
+								}
+								targets
+							},
 						});
 					},
 					StmtNode::Var(var) => {
@@ -158,11 +183,11 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 				}
 			}
 			ops.push(Op {name: OpName::Builtin(Builtin::RET), args: vec!(), targets: vec!()});
-			Callable::Proc(Proc {
+			Ok(Callable::Proc(Proc {
 				argcount: proc.args.len(),
 				vars: vars,
 				code: ops,
-			})
+			}))
 		},
 	}
 }

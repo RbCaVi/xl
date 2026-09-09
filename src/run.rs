@@ -72,7 +72,7 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 				// collect arguments
 				let opargs: Vec<Value> = op.args.iter().map(|arg| {
 					match arg {
-						Arg::Var(i) => vars.get(*i).unwrap().clone(), // if this gives an error you passed something wrong or i wrote bad code
+						Arg::Var(i) => vars.get(*i).unwrap().clone(), // if this gives an error you passed something wrong or i wrote the compiler wrong
 						Arg::Int(n) => Value::new_i32(*n),
 					}
 				}).collect();
