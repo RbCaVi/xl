@@ -24,7 +24,7 @@ proc cswap (in out a 4, in out b 4, in c 4) {
 }
 "#;
     println!("{}", content);
-    let tree = match parse(Lexer::new(content).map(|x| {println!("{:?}", x.value); x})) {
+    let tree = match parse(Lexer::new(content).map(|x| {if let Ok(ref x) = x {println!("{:?}", x.value);} x})) {
         Err(err) => {println!("no tree {:?}", err); return;},
         Ok(tree) => tree,
     };
@@ -36,7 +36,7 @@ proc cswap (in out a 4, in out b 4, in c 4) {
     execute(&compiled, *symbols.get("swap").unwrap(), &args);
     println!("{:?}", args);
     println!("");
-    
+
     let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1), Value::new_i32(1));
     println!("{:?}", args);
     execute(&compiled, *symbols.get("cswap").unwrap(), &args);

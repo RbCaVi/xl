@@ -28,17 +28,30 @@
 // later (tm)
 
 use std::iter::Peekable;
-use crate::lexer::{Token, TokenValue};
+use crate::lexer::{Token, TokenValue, LexerError};
 
 #[derive(Debug)]
-pub struct ParseError {
-	text: &'static str,
+pub enum ParseError {
+	Parse(&'static str),
+	Lex(LexerError),
+}
+
+impl From<LexerError> for ParseError {
+	fn from(err: LexerError) -> ParseError {
+		ParseError::Lex(err)
+	}
+}
+
+impl From<&LexerError> for ParseError {
+	fn from(err: &LexerError) -> ParseError {
+		ParseError::Lex(LexerError {text: err.text})
+	}
 }
 
 // does stringify!() always return something that can be passed to concat!() ?
 macro_rules! _try_parse_field {
 	($iter:ident, $kind:ident) => {
-		match $iter.next().ok_or(parse_eof_expected!($kind))?.value {
+		match $iter.next().ok_or(parse_eof_expected!($kind))??.value {
 			TokenValue::$kind(field) => field,
 			_ => throw_parse_expected!($kind),
 		}
@@ -47,7 +60,7 @@ macro_rules! _try_parse_field {
 
 macro_rules! _try_parse_empty {
 	($iter:ident, $kind:ident) => {
-		match $iter.next().ok_or(parse_eof_expected!($kind))?.value {
+		match $iter.next().ok_or(parse_eof_expected!($kind))??.value {
 			TokenValue::$kind => (),
 			_ => throw_parse_expected!($kind),
 		}
@@ -82,11 +95,11 @@ macro_rules! comma_or_sep {
 }
 
 macro_rules! parse_expected {
-	($($kinds:ident),*) => (ParseError {text: concat!("parse error: expected ", comma_or_sep!($($kinds),*))});
+	($($kinds:ident),*) => (ParseError::Parse(concat!("parse error: expected ", comma_or_sep!($($kinds),*))));
 }
 
 macro_rules! parse_eof_expected {
-	($($kinds:ident),*) => (ParseError {text: concat!("parse error: at EOF, expected ", comma_or_sep!($($kinds),*))});
+	($($kinds:ident),*) => (ParseError::Parse(concat!("parse error: at EOF, expected ", comma_or_sep!($($kinds),*))));
 }
 
 macro_rules! throw_parse_expected {
@@ -97,11 +110,11 @@ macro_rules! throw_parse_eof_expected {
 	($($kinds:ident),*) => (Err(parse_eof_expected!($($kinds),*))?);
 }
 
-pub fn parse<'a, I: Iterator<Item = Token<'a>>>(iter: I) -> Result<CodeNode<'a>, ParseError> {
+pub fn parse<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: I) -> Result<CodeNode<'a>, ParseError> {
 	parse_code(&mut iter.peekable())
 }
 
-fn parse_code<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<CodeNode<'a>, ParseError> {
+fn parse_code<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<CodeNode<'a>, ParseError> {
 	// use parse_stmt to parse stmts into a Vec<StmtNode>
 	// then pass it into Visitor::code()
 	let mut items: Vec<ItemNode<'a>> = Vec::new();
@@ -111,10 +124,10 @@ fn parse_code<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 	Ok(CodeNode {code: items})
 }
 
-fn parse_item<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ItemNode<'a>>, ParseError> {
+fn parse_item<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<Option<ItemNode<'a>>, ParseError> {
 	// check next token
 	// must be proc (for now, will add fn, possibly others)
-	match match iter.next() {None => return Ok(None), Some(x) => x}.value {
+	match match iter.next() {None => return Ok(None), Some(x) => x}?.value {
 		TokenValue::PROC => {
 			// parse name '(' args ')' '{' code '}'
 			// jumptargets will come later
@@ -123,7 +136,7 @@ fn parse_item<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 			let mut args: Vec<ProcArgNode> = Vec::new();
 			while let Some(arg) = parse_procarg(iter)? {
 				args.push(arg);
-				match iter.next().ok_or(parse_eof_expected!(COMMA, RPAR))?.value {
+				match iter.next().ok_or(parse_eof_expected!(COMMA, RPAR))??.value {
 					TokenValue::COMMA => (),
 					TokenValue::RPAR => break,
 					_ => throw_parse_expected!(COMMA, RPAR),
@@ -141,14 +154,14 @@ fn parse_item<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 	}
 }
 
-fn parse_procarg<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ProcArgNode<'a>>, ParseError> {
+fn parse_procarg<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<Option<ProcArgNode<'a>>, ParseError> {
 	// uhh can have in out
 	// then name type
 	// ok so pop tokens until a name comes up
 	let mut in_ = false;
 	let mut out = false;
 	let name = loop {
-		match iter.next().ok_or(parse_eof_expected!(IN, OUT, NAME))?.value {
+		match iter.next().ok_or(parse_eof_expected!(IN, OUT, NAME))??.value {
 			TokenValue::IN => {in_ = true;},
 			TokenValue::OUT => {out = true;},
 			TokenValue::NAME(name) => {break name;},
@@ -159,13 +172,13 @@ fn parse_procarg<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> R
 	Ok(Some(ProcArgNode {in_: in_, out: out, name: name, argtype: argtype}))
 }
 
-fn parse_argtype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<ArgTypeNode, ParseError> {
+fn parse_argtype<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<ArgTypeNode, ParseError> {
 	let size = try_parse!(iter, INT);
 	Ok(ArgTypeNode {size: size})
 }
 
-fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<StmtNode<'a>>, ParseError> {
-	match iter.peek().ok_or(parse_eof_expected!(LABEL, OP, VAR, RBR))?.value {
+fn parse_stmt<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<Option<StmtNode<'a>>, ParseError> {
+	match iter.peek().ok_or(parse_eof_expected!(LABEL, OP, VAR, RBR))?.as_ref()?.value {
 		TokenValue::LABEL => {
 			iter.next();
 			let name = try_parse!(iter, NAME);
@@ -178,13 +191,13 @@ fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 			while let Some(arg) = parse_value(iter)? {
 				args.push(arg);
 			}
-			let targets = if let Some(Token {value: TokenValue::ARROW, ..}) = iter.peek() {
+			let targets = if let Some(Ok(Token {value: TokenValue::ARROW, ..})) = iter.peek() {
 				// parse a bunch of targets
 				// how
 				iter.next();
 				let mut targets: Vec<TargetNode<'a>> = Vec::new();
 				targets.push(parse_target(iter)?);
-				while let Some(Token {value: TokenValue::COMMA, ..}) = iter.peek() {
+				while let Some(Ok(Token {value: TokenValue::COMMA, ..})) = iter.peek() {
 					iter.next();
 					targets.push(parse_target(iter)?);
 				}
@@ -205,7 +218,7 @@ fn parse_stmt<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Resu
 	}
 }
 
-fn parse_target<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<TargetNode<'a>, ParseError> {
+fn parse_target<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<TargetNode<'a>, ParseError> {
 	// ok a name plus possible (vars,*)
 	// delimited by comma or uhh actually just anything not a name
 	// start with just the name
@@ -213,13 +226,13 @@ fn parse_target<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Re
 	Ok(TargetNode {name: name, vars: vec!()})
 }
 
-fn parse_vartype<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
+fn parse_vartype<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
 	let size = try_parse!(iter, INT);
 	Ok(VarTypeNode {size: size})
 }
 
-fn parse_value<'a, I: Iterator<Item = Token<'a>>>(iter: &mut Peekable<I>) -> Result<Option<ValueNode<'a>>, ParseError> {
-	match iter.peek().ok_or(parse_eof_expected!(NAME, INT))?.value {
+fn parse_value<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<Option<ValueNode<'a>>, ParseError> {
+	match iter.peek().ok_or(parse_eof_expected!(NAME, INT))?.as_ref()?.value {
 		TokenValue::NAME(name) => {
 			iter.next();
 			Ok(Some(ValueNode::Name(name)))

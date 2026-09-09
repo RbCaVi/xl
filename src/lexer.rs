@@ -81,6 +81,11 @@ pub struct Token<'a> {
 	pub value: TokenValue<'a>,
 }
 
+#[derive(Debug)]
+pub struct LexerError {
+	pub text: &'static str,
+}
+
 impl<'a> Token<'a> {
 	fn single_char(source: &'a str, start: usize, value: TokenValue<'a>) -> Token<'a> {
 		Token::sized(source, start, 1, value)
@@ -121,13 +126,13 @@ pub enum TokenValue<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-	type Item = Token<'a>;
+	type Item = Result<Token<'a>, LexerError>;
 
-	fn next(&mut self) -> Option<Token<'a>> {
+	fn next(&mut self) -> Option<Result<Token<'a>, LexerError>> {
 		self.skip_whitespace();
 		let (start, c) = self.iter.next()?;
 		macro_rules! token {
-			($kind:ident, $($args:expr),*) => (Some(Token::$kind(&self.source, start, $($args),*)))
+			($kind:ident, $($args:expr),*) => (Some(Ok(Token::$kind(&self.source, start, $($args),*))))
 		}
 		// test the first character
 		match c {
@@ -141,7 +146,7 @@ impl<'a> Iterator for Lexer<'a> {
 				if let Some((_, '>')) = self.iter.peek() {
 					self.iter.next();
 				} else {
-					panic!("- always makes an arrow bro");
+					Err(LexerError {text: "bro i thought it would be all digits"})?
 				}
 				token!(sized, 2, TokenValue::ARROW)
 			},
@@ -174,9 +179,9 @@ impl<'a> Iterator for Lexer<'a> {
 						Some((end, _)) => break *end,
 					}
 				};
-				token!(new, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits")))
+				token!(new, end, TokenValue::INT(self.source[start..end].parse().expect("bro i thought it would be all digits")) // this is expect() ed because the input was just checked to be all digits
 			},
-			_ => panic!("nooo unrecognized thing error"),
+			_ => Err(LexerError {text: "nooo unrecognized thing error"})?,
 		}
 	}
 }
