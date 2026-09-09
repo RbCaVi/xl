@@ -36,22 +36,18 @@ proc cswap (in out a 4, in out b 4, in c 4) {
 
     println!("{:?} {:?}", compiled, symbols);
 
-    let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1));
-    println!("{:?}", args);
-    execute(&compiled, *symbols.get("swap").unwrap(), &args);
-    println!("{:?}", args);
-    println!("");
+    macro_rules! callf {
+        ($func:ident, $($args:expr),*) => {
+            let args: Vec<Value> = vec!($(Value::new_i32($args)),*);
+            println!("arg values before: {:?}", args);
+            execute(&compiled, *symbols.get(stringify!($func)).unwrap(), &args);
+            println!("arg values after: {:?}", args);
+            println!("");
+        }
+    }
 
-    let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1), Value::new_i32(1));
-    println!("{:?}", args);
-    execute(&compiled, *symbols.get("cswap").unwrap(), &args);
-    println!("{:?}", args);
-    println!("");
-    
-    let args: Vec<Value> = vec!(Value::new_i32(15), Value::new_i32(1), Value::new_i32(0));
-    println!("{:?}", args);
-    execute(&compiled, *symbols.get("cswap").unwrap(), &args);
-    println!("{:?}", args);
-    println!("");
+    callf!(swap, 15, 1);
+    callf!(cswap, 15, 1, 1);
+    callf!(cswap, 15, 1, 0);
     
 }
