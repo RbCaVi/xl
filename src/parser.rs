@@ -219,11 +219,11 @@ fn parse_stmt<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut 
 }
 
 fn parse_target<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<TargetNode<'a>, ParseError> {
-	// ok a name plus possible (vars,*)
+	// ok a name plus possible (vars,*) // no vars actually
 	// delimited by comma or uhh actually just anything not a name
 	// start with just the name
 	let name = try_parse!(iter, NAME);
-	Ok(TargetNode {name: name, vars: vec!()})
+	Ok(TargetNode {name: name})
 }
 
 fn parse_vartype<'a, I: Iterator<Item = Result<Token<'a>, LexerError>>>(iter: &mut Peekable<I>) -> Result<VarTypeNode, ParseError> {
@@ -292,7 +292,6 @@ pub struct OpNode<'a> {
 #[derive(Debug)]
 pub struct TargetNode<'a> {
 	pub name: &'a str,
-	pub vars: Vec<&'a str>,
 }
 
 #[derive(Debug)]

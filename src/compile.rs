@@ -40,7 +40,6 @@ pub struct Op {
 #[derive(Debug)]
 pub struct Target {
 	pub target: usize,
-	pub vars: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -164,12 +163,12 @@ pub fn compile_callable<'a>(item: &ItemNode<'a>, callablemap: &HashMap<&str, usi
 								args
 							},
 							targets: if op.targets.len() == 0 {
-								vec!(Target {target: ops.len() + 1, vars: vec!()})
+								vec!(Target {target: ops.len() + 1})
 							} else {
 								let mut targets: Vec<Target> = Vec::new();
 								for target in &op.targets {
 									targets.push(Target {
-										target: *labelmap.get(target.name).ok_or(CompileError {text: "reference to nonexistent label"})?, vars: vec!()
+										target: *labelmap.get(target.name).ok_or(CompileError {text: "reference to nonexistent label"})?
 									});
 								}
 								targets

@@ -12,7 +12,6 @@
 use crate::compile::{Compiled, OpName, Builtin, Arg, Callable, Type, Target};
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
-use std::iter::zip;
 use std::fmt::{self, Debug, Formatter};
 
 #[derive(Clone)]
@@ -73,9 +72,9 @@ impl Debug for Value {
 
 // what is this
 // i think a out control index + out var values
+// just out control index
 pub struct ExecResult {
 	target: usize,
-	vals: Vec<Value>,
 }
 
 pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
@@ -110,7 +109,7 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 					},
 					OpName::Builtin(Builtin::RET) => {
 						assert!(op.args.len() == 0 && op.targets.len() == 0);
-						return ExecResult {target: 0, vals: vec!()};
+						return ExecResult {target: 0};
 					},
 					OpName::Builtin(Builtin::SET) => {
 						match &opargs[..] {
@@ -118,14 +117,11 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 							_ => panic!("no"),
 						}
 						match &op.targets[..] {
-							[Target {vars: vars, ..}] => match &vars[..] {
-								[] => (),
-								_ => panic!("no"),
-							},
+							[_] => (),
 							_ => panic!("no"),
 						}
 						opargs[0].set(&*opargs[1].get());
-						ExecResult {target: 0, vals: vec!()}
+						ExecResult {target: 0}
 					},
 					OpName::Builtin(Builtin::IFZ) => {
 						match &opargs[..] {
@@ -133,20 +129,15 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 							_ => panic!("no"),
 						}
 						match &op.targets[..] {
-							[Target {vars: vars1, ..}, Target {vars: vars2, ..}] => match (&vars1[..], &vars2[..]) {
-								([], []) => (),
-								_ => panic!("no"),
-							},
+							[_, _] => (),
 							_ => panic!("no"),
 						}
 
-						ExecResult {target: if opargs[0].get().iter().all(|n| *n == 0) {0} else {1}, vals: vec!()}
+						ExecResult {target: if opargs[0].get().iter().all(|n| *n == 0) {0} else {1}}
 					},
 				};
-				let ExecResult {target, vals} = result;
-				let Target {target, vars: tvars} = &op.targets[target];
-				assert!(vals.len() == tvars.len());
-				zip(tvars.iter(), vals.iter()).for_each(|(var, val)| vars[*var].set(&*val.get()));
+				let ExecResult {target} = result;
+				let Target {target} = &op.targets[target];
 				pc = *target; // target
 			}
 		},
