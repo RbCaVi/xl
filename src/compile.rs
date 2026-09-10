@@ -67,19 +67,19 @@ pub struct Var {
 }
 
 #[derive(Debug)]
-pub struct Type {
-	pub size: i32,
+pub enum Type {
+	Sized(i32),
 }
 
 impl From<&ArgTypeNode> for Type {
 	fn from(t: &ArgTypeNode) -> Type {
-		Type {size: t.size}
+		Type::Sized(t.size)
 	}
 }
 
 impl From<&VarTypeNode> for Type {
 	fn from(t: &VarTypeNode) -> Type {
-		Type {size: t.size}
+		Type::Sized(t.size)
 	}
 }
 

@@ -27,7 +27,9 @@ struct VType {
 
 impl From<&Type> for VType {
 	fn from(t: &Type) -> VType {
-		VType {size: t.size}
+		match t {
+			Type::Sized(size) => VType {size: *size},
+		}
 	}
 }
 
