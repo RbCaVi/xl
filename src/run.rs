@@ -95,6 +95,12 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						Arg::Int(n) => Value::new_i32(*n),
 					}
 				}).collect();
+				macro_rules! signature {
+					($($args:ident)* -> $count:expr) => {
+						let [$($args),*] = opargs.as_slice() else {panic!("no");};
+						assert!(op.targets.len() == $count);
+					}
+				}
 				let result = match op.name {
 					OpName::UserDef(idx) => {
 						// uhh like execute() it
@@ -108,32 +114,18 @@ pub fn execute(code: &Compiled, index: usize, args: &Vec<Value>) -> ExecResult {
 						execute(code, idx, &opargs)
 					},
 					OpName::Builtin(Builtin::RET) => {
-						assert!(op.args.len() == 0 && op.targets.len() == 0);
+						signature!( -> 0);
 						return ExecResult {target: 0};
 					},
 					OpName::Builtin(Builtin::SET) => {
-						match &opargs[..] {
-							[Value {valtype: vt1, ..}, Value {valtype: vt2, ..}] if vt1 == vt2 => (),
-							_ => panic!("no"),
-						}
-						match &op.targets[..] {
-							[_] => (),
-							_ => panic!("no"),
-						}
-						opargs[0].set(&*opargs[1].get());
+						signature!(var val -> 1);
+						assert!(var.valtype == val.valtype);
+						var.set(&*val.get());
 						ExecResult {target: 0}
 					},
 					OpName::Builtin(Builtin::IFZ) => {
-						match &opargs[..] {
-							[_] => (),
-							_ => panic!("no"),
-						}
-						match &op.targets[..] {
-							[_, _] => (),
-							_ => panic!("no"),
-						}
-
-						ExecResult {target: if opargs[0].get().iter().all(|n| *n == 0) {0} else {1}}
+						signature!(cond -> 2);
+						ExecResult {target: if cond.get().iter().all(|n| *n == 0) {0} else {1}}
 					},
 				};
 				let ExecResult {target} = result;
